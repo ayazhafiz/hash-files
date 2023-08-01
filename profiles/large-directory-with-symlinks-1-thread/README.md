@@ -8,7 +8,7 @@ Total number of files: 328156
 
 Parameters:
 
-threads: 2
+threads: 1
 buffer_size: 8192
 io_uring_ring_size: 32
 
