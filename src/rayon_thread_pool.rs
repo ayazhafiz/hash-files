@@ -60,6 +60,9 @@ impl Walker {
             self.visit_file(path);
         } else if ft.is_dir() {
             self.visit_dir(path, scope);
+        } else if ft.is_symlink() {
+            let realpath = fs::read_link(path).unwrap();
+            self.visit_entry(realpath, scope);
         } else {
             //
         }

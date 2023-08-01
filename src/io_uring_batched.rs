@@ -64,7 +64,7 @@ pub fn main(inputs: Inputs) -> Outputs {
         workers.push(worker);
     }
 
-    for entry in WalkDir::new(directory) {
+    for entry in WalkDir::new(directory).follow_links(true) {
         let entry = entry.unwrap();
 
         let metadata = entry.metadata().unwrap();

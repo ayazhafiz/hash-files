@@ -76,6 +76,13 @@ fn main() {
         io_uring_ring_size,
     };
 
+    eprintln!("About to start with parameters");
+    eprintln!("  directory: {}", inputs.directory.display());
+    eprintln!("  threads: {}", inputs.threads);
+    eprintln!("  max_fds: {}", inputs.max_fds);
+    eprintln!("  buffer_size: {}", inputs.buffer_size);
+    eprintln!("  io_uring_ring_size: {}", inputs.io_uring_ring_size);
+
     let Outputs {
         start,
         files: results,
