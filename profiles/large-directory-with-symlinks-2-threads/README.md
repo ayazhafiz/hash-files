@@ -4,8 +4,6 @@ These profiles were collected in directory created by the
 
 script in the root of this directory.
 
-Total number of files: 328156
-
 Parameters:
 
 threads: 2
