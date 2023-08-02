@@ -126,41 +126,50 @@ fn start_workers(state: WorkerState) -> Vec<FileInfo> {
     while !no_more_files || hashing_states.len > 0 {
         //
         'get_next_fd: while hashing_states.len < ring_size {
-            match receiver.try_recv() {
-                Ok((entry, meta)) => {
-                    let file = File::open(entry.path()).unwrap();
-                    let fd = file.into_raw_fd();
-                    let state = HashingState {
-                        hasher: Hasher::new(),
-                        buffer: reuse_buffers.get(),
-                        offset: 0,
-                        len: meta.len(),
-                    };
-
-                    hashing_states.insert(fd, state);
-
-                    let read_e = opcode::Read::new(
-                        io_uring::types::Fd(fd),
-                        hashing_states.get_buffer(fd).as_mut_ptr() as _,
-                        buffer_size,
-                    )
-                    .offset(0)
-                    .build()
-                    .user_data(fd as _);
-
-                    unsafe {
-                        ring.submission().push(&read_e).unwrap();
+            let (entry, meta) = if hashing_states.len > 0 {
+                match receiver.try_recv() {
+                    Ok(p) => p,
+                    Err(crossbeam::channel::TryRecvError::Empty) => break 'get_next_fd,
+                    Err(crossbeam::channel::TryRecvError::Disconnected) => {
+                        no_more_files = true;
+                        break 'get_next_fd;
                     }
-
-                    wanted += 1;
                 }
-
-                Err(crossbeam::channel::TryRecvError::Empty) => break 'get_next_fd,
-                Err(crossbeam::channel::TryRecvError::Disconnected) => {
-                    no_more_files = true;
-                    break 'get_next_fd;
+            } else {
+                match receiver.recv() {
+                    Ok(p) => p,
+                    Err(crossbeam::channel::RecvError) => {
+                        no_more_files = true;
+                        break 'get_next_fd;
+                    }
                 }
+            };
+
+            let file = File::open(entry.path()).unwrap();
+            let fd = file.into_raw_fd();
+            let state = HashingState {
+                hasher: Hasher::new(),
+                buffer: reuse_buffers.get(),
+                offset: 0,
+                len: meta.len(),
+            };
+
+            hashing_states.insert(fd, state);
+
+            let read_e = opcode::Read::new(
+                io_uring::types::Fd(fd),
+                hashing_states.get_buffer(fd).as_mut_ptr() as _,
+                buffer_size,
+            )
+            .offset(0)
+            .build()
+            .user_data(fd as _);
+
+            unsafe {
+                ring.submission().push(&read_e).unwrap();
             }
+
+            wanted += 1;
         }
 
         while !ring.completion().is_empty() {
@@ -202,10 +211,8 @@ fn start_workers(state: WorkerState) -> Vec<FileInfo> {
             }
         }
 
-        if wanted == 0 {
-            ring.submit_and_wait(wanted).unwrap();
-        } else {
-            std::thread::yield_now();
+        if wanted != 0 {
+            ring.submit().unwrap();
         }
         wanted = 0;
     }
